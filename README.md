@@ -10,7 +10,7 @@ A Python library for simulating superconducting quantum circuits. Implements thr
 
 A transmon is a superconducting qubit based on a Josephson junction shunted by a large capacitance. Its Hamiltonian in the Cooper-pair charge basis is:
 
-$$H = 4E_C\!\left(\hat{n} - n_g\right)^2 - E_J \cos\hat{\varphi}$$
+$$H = 4E_C \left(\hat{n} - n_g\right)^2 - E_J \cos\hat{\varphi}$$
 
 - $\hat{n}$ — Cooper-pair number operator (integer eigenvalues)
 - $\hat{\varphi}$ — superconducting phase across the junction (conjugate to $\hat{n}$)
@@ -20,7 +20,7 @@ $$H = 4E_C\!\left(\hat{n} - n_g\right)^2 - E_J \cos\hat{\varphi}$$
 
 Expanding the cosine potential in the charge basis $\{|n\rangle,\; n = -N \ldots N\}$ yields a tridiagonal matrix:
 
-$$H_{mn} = 4E_C(m - n_g)^2\,\delta_{mn} - \frac{E_J}{2}\!\left(\delta_{m,n+1} + \delta_{m,n-1}\right)$$
+$$H_{mn} = 4E_C(m - n_g)^2 \delta_{mn} - \frac{E_J}{2} \left(\delta_{m,n+1} + \delta_{m,n-1}\right)$$
 
 The diagonal gives the electrostatic energy of each charge state; the off-diagonal tunneling terms hybridize neighboring charge states into energy bands.
 
@@ -51,19 +51,19 @@ It decreases exponentially with $\sqrt{E_J/E_C}$, which is why increasing $E_J/E
 
 Coupling a transmon to a superconducting microwave resonator (a transmission-line or lumped-element LC circuit) enables qubit control and readout via the **circuit QED** architecture. The full Hamiltonian is:
 
-$$H = H_t \otimes \mathbb{I}_r + \mathbb{I}_t \otimes \omega_r a^\dagger a + g\,\hat{n}_t \otimes \!\left(a + a^\dagger\right)$$
+$$H = H_t \otimes \mathbb{I}_r + \mathbb{I}_t \otimes \omega_r a^\dagger a + g \hat{n}_t \otimes \left(a + a^\dagger\right)$$
 
-- $a,\,a^\dagger$ — resonator ladder operators
+- $a, a^\dagger$ — resonator ladder operators
 - $\omega_r$ — bare resonator frequency
 - $g$ — capacitive coupling strength (typically 10–200 MHz)
 
-The coupling term $g\,\hat{n}_t(a + a^\dagger)$ reflects the fact that the transmon charge operator (electric dipole) couples to the resonator voltage (electric field).
+The coupling term $g \hat{n}_t(a + a^\dagger)$ reflects the fact that the transmon charge operator (electric dipole) couples to the resonator voltage (electric field).
 
 #### Resonant Regime ($|\Delta| \sim g$, $\Delta = \omega_{01} - \omega_r$)
 
 When the transmon and resonator are near resonance, they hybridize into dressed polariton modes. The two lowest excited states repel each other, opening a gap:
 
-$$\text{vacuum-Rabi splitting} \approx 2g\,\left|\langle 0|\hat{n}|1\rangle\right|$$
+$$\text{vacuum-Rabi splitting} \approx 2g \left|\langle 0|\hat{n}|1\rangle\right|$$
 
 This avoided crossing is directly observable in the resonator frequency sweep demo.
 
@@ -71,11 +71,11 @@ This avoided crossing is directly observable in the resonator frequency sweep de
 
 Far off resonance, the transmon and resonator remain largely separate but develop a qubit-state-dependent resonator frequency shift. Perturbation theory gives the **dispersive shift**:
 
-$$\chi \approx \frac{g^2\,\alpha}{\Delta(\Delta + \alpha)}$$
+$$\chi \approx \frac{g^2 \alpha}{\Delta(\Delta + \alpha)}$$
 
 where $\alpha$ is the transmon anharmonicity. The resonator frequency effectively becomes:
 
-$$\omega_r \to \omega_r + \chi\,\frac{\sigma_z}{2}$$
+$$\omega_r \to \omega_r + \chi \frac{\sigma_z}{2}$$
 
 so measuring the resonator transmission reveals the qubit state without directly driving the qubit — the foundation of **dispersive readout**. The sign of $\chi$ depends on the sign of $\Delta$ (qubit above or below the resonator).
 
@@ -85,13 +85,13 @@ so measuring the resonator transmission reveals the qubit state without directly
 
 Two transmon qubits (A, B) interact via a SQUID coupler (C) — a loop of two Josephson junctions threaded by an external magnetic flux $\Phi$. The flux tunes the effective Josephson energy of the loop:
 
-$$E_{J,C}(\Phi) = E_{J,\max}\left|\cos\!\left(\pi\,\frac{\Phi}{\Phi_0}\right)\right|$$
+$$E_{J,C}(\Phi) = E_{J,\max}\left|\cos\left(\pi \frac{\Phi}{\Phi_0}\right)\right|$$
 
 where $\Phi_0 = h/(2e)$ is the superconducting flux quantum. As $\Phi$ approaches $\Phi_0/2$, $E_{J,C} \to 0$ and the coupler frequency drops from its maximum (at $\Phi = 0$) down toward the qubit frequencies. This tunability is the key tool for controlling qubit–qubit coupling.
 
 The full three-body Hamiltonian is assembled in the dressed single-qubit eigenbasis to keep the composite Hilbert space tractable:
 
-$$H = H_A \otimes \mathbb{I}_B \otimes \mathbb{I}_C + \mathbb{I}_A \otimes H_B \otimes \mathbb{I}_C + \mathbb{I}_A \otimes \mathbb{I}_B \otimes H_C(\Phi) + g_{AC}\,\hat{n}_A \otimes \mathbb{I}_B \otimes \hat{n}_C + g_{BC}\,\mathbb{I}_A \otimes \hat{n}_B \otimes \hat{n}_C$$
+$$H = H_A \otimes \mathbb{I}_B \otimes \mathbb{I}_C + \mathbb{I}_A \otimes H_B \otimes \mathbb{I}_C + \mathbb{I}_A \otimes \mathbb{I}_B \otimes H_C(\Phi) + g_{AC} \hat{n}_A \otimes \mathbb{I}_B \otimes \hat{n}_C + g_{BC} \mathbb{I}_A \otimes \hat{n}_B \otimes \hat{n}_C$$
 
 There is no direct A–B coupling term; interaction is mediated entirely through the coupler.
 
