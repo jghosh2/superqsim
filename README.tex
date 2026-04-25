@@ -1,0 +1,359 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath, amssymb}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{microtype}
+\usepackage{parskip}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue,
+  urlcolor=blue,
+}
+
+\lstset{
+  basicstyle=\ttfamily\small,
+  backgroundcolor=\color{gray!10},
+  frame=single,
+  framerule=0pt,
+  breaklines=true,
+  columns=fullflexible,
+}
+
+\newcommand{\ket}[1]{|#1\rangle}
+\newcommand{\bra}[1]{\langle #1|}
+\newcommand{\braket}[2]{\langle #1 | #2 \rangle}
+
+\title{\textbf{superqsim}}
+\author{}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+A Python library for simulating superconducting quantum circuits. Implements three device
+classes---\texttt{Transmon}, \texttt{TransmonResonator}, and
+\texttt{TunableCouplerSystem}---built on \href{https://qutip.org/}{QuTiP} and NumPy. All
+energies are in \textbf{GHz} with $\hbar = 1$.
+
+\hrule
+\vspace{1em}
+
+% ============================================================
+\section{Physics Background}
+
+\subsection{The Transmon Qubit}
+
+A transmon is a superconducting qubit based on a Josephson junction shunted by a large
+capacitance. Its Hamiltonian in the Cooper-pair charge basis is:
+
+\begin{equation}
+  H = 4E_C\!\left(\hat{n} - n_g\right)^2 - E_J \cos\hat{\varphi}
+\end{equation}
+
+\begin{itemize}
+  \item $\hat{n}$ --- Cooper-pair number operator (integer eigenvalues)
+  \item $\hat{\varphi}$ --- superconducting phase across the junction (conjugate to $\hat{n}$)
+  \item $E_C = e^2/(2C)$ --- charging energy: the electrostatic energy cost of adding one
+        Cooper pair
+  \item $E_J$ --- Josephson energy: the energy scale of Cooper-pair tunneling
+  \item $n_g$ --- dimensionless offset charge (gate-tunable, or set by stray electric fields)
+\end{itemize}
+
+Expanding the cosine potential in the charge basis $\{\ket{n},\; n = -N,\ldots,N\}$ yields a
+tridiagonal matrix:
+
+\begin{equation}
+  H_{mn} = 4E_C(m - n_g)^2\,\delta_{mn}
+            \;-\; \frac{E_J}{2}\!\left(\delta_{m,n+1} + \delta_{m,n-1}\right)
+\end{equation}
+
+The diagonal gives the electrostatic energy of each charge state; the off-diagonal tunneling
+terms hybridize neighboring charge states into energy bands.
+
+\subsubsection{The $E_J/E_C$ Ratio and the Transmon Regime}
+
+The character of the qubit is controlled by the ratio $E_J/E_C$:
+
+\begin{itemize}
+  \item \textbf{$E_J/E_C \sim 1$ (Cooper-pair box):} charge states are weakly hybridized.
+        Energy levels are sensitive to $n_g$---a small stray charge shifts qubit frequency
+        significantly. This ``charge noise'' is the dominant dephasing mechanism.
+  \item \textbf{$E_J/E_C \gg 1$ (transmon):} deep in the cosine well, wavefunctions spread
+        over many charge states. The energy bands flatten exponentially in
+        $\sqrt{E_J/E_C}$, suppressing charge dispersion. Typical devices use
+        $E_J/E_C \approx 50$.
+\end{itemize}
+
+The cost of this suppression is \textbf{reduced anharmonicity}: the spacing between levels
+becomes more uniform. In the transmon limit the anharmonicity saturates at:
+
+\begin{equation}
+  \alpha = \omega_{12} - \omega_{01} \;\approx\; -E_C
+\end{equation}
+
+For $E_C = 0.2\,\text{GHz}$ this gives $\alpha \approx -200\,\text{MHz}$---large enough that
+individual transitions can be addressed with ${\sim}10\,\text{ns}$ microwave pulses, but small
+enough that the qubit frequency ($\omega_{01} \approx \text{few GHz}$) is well into the
+easily-controlled microwave range.
+
+\subsubsection{Charge Dispersion}
+
+Charge dispersion measures how much the qubit frequency varies over a full period of $n_g$:
+
+\begin{equation}
+  \varepsilon_m = \max_{n_g} E_m - \min_{n_g} E_m
+\end{equation}
+
+It decreases exponentially with $\sqrt{E_J/E_C}$, which is why increasing $E_J/E_C$ is so
+effective at reducing charge noise. The notebook's \texttt{charge\_dispersion\_sweep} demo
+illustrates this directly by sweeping $n_g$ from $-1$ to $1$ and plotting the resulting energy
+bands.
+
+\hrule
+\vspace{1em}
+
+\subsection{The Transmon--Resonator System}
+
+Coupling a transmon to a superconducting microwave resonator (a transmission-line or
+lumped-element LC circuit) enables qubit control and readout via the \textbf{circuit QED}
+architecture. The full Hamiltonian is:
+
+\begin{equation}
+  H = H_t \otimes \mathbb{I}_r
+      + \mathbb{I}_t \otimes \omega_r a^\dagger a
+      + g\,\hat{n}_t \otimes \!\left(a + a^\dagger\right)
+\end{equation}
+
+\begin{itemize}
+  \item $a,\,a^\dagger$ --- resonator ladder operators
+  \item $\omega_r$ --- bare resonator frequency
+  \item $g$ --- capacitive coupling strength (typically $10$--$200\,\text{MHz}$)
+\end{itemize}
+
+The coupling term $g\,\hat{n}_t(a + a^\dagger)$ reflects the fact that the transmon charge
+operator (electric dipole) couples to the resonator voltage (electric field).
+
+\subsubsection{Resonant Regime ($|\Delta| \sim g$, $\Delta = \omega_{01} - \omega_r$)}
+
+When the transmon and resonator are near resonance, they hybridize into dressed polariton
+modes. The two lowest excited states repel each other, opening a gap:
+
+\begin{equation}
+  \text{vacuum-Rabi splitting} \approx 2g\,\left|\braket{0}{\hat{n}|1}\right|
+\end{equation}
+
+This avoided crossing is directly observable in the resonator frequency sweep demo.
+
+\subsubsection{Dispersive Regime ($|\Delta| \gg g$)}
+
+Far off resonance, the transmon and resonator remain largely separate but develop a
+qubit-state-dependent resonator frequency shift. Perturbation theory gives the
+\textbf{dispersive shift}:
+
+\begin{equation}
+  \chi \;\approx\; \frac{g^2\,\alpha}{\Delta(\Delta + \alpha)}
+\end{equation}
+
+where $\alpha$ is the transmon anharmonicity. The resonator frequency effectively becomes:
+
+\begin{equation}
+  \omega_r \;\to\; \omega_r + \chi\,\frac{\sigma_z}{2}
+\end{equation}
+
+so measuring the resonator transmission reveals the qubit state without directly driving the
+qubit---the foundation of \textbf{dispersive readout}. The sign of $\chi$ depends on the sign
+of $\Delta$ (qubit above or below the resonator).
+
+\hrule
+\vspace{1em}
+
+\subsection{The Tunable Coupler System}
+
+Two transmon qubits (A, B) interact via a SQUID coupler (C)---a loop of two Josephson
+junctions threaded by an external magnetic flux $\Phi$. The flux tunes the effective Josephson
+energy of the loop:
+
+\begin{equation}
+  E_{J,C}(\Phi) = E_{J,\max}\left|\cos\!\left(\pi\,\frac{\Phi}{\Phi_0}\right)\right|
+\end{equation}
+
+where $\Phi_0 = h/(2e)$ is the superconducting flux quantum. As $\Phi$ approaches $\Phi_0/2$,
+$E_{J,C} \to 0$ and the coupler frequency drops from its maximum (at $\Phi = 0$) down toward
+the qubit frequencies. This tunability is the key tool for controlling qubit--qubit coupling.
+
+The full three-body Hamiltonian is assembled in the dressed single-qubit eigenbasis to keep the
+composite Hilbert space tractable:
+
+\begin{align}
+  H &= H_A \otimes \mathbb{I}_B \otimes \mathbb{I}_C
+     + \mathbb{I}_A \otimes H_B \otimes \mathbb{I}_C
+     + \mathbb{I}_A \otimes \mathbb{I}_B \otimes H_C(\Phi) \notag \\
+    &\quad + g_{AC}\,\hat{n}_A \otimes \mathbb{I}_B \otimes \hat{n}_C
+     + g_{BC}\,\mathbb{I}_A \otimes \hat{n}_B \otimes \hat{n}_C
+\end{align}
+
+There is no direct A--B coupling term; interaction is mediated entirely through the coupler.
+
+\subsubsection{Schrieffer--Wolff Effective Coupling}
+
+When the coupler is far detuned from both qubits
+($|\Delta_{iC}| \gg g_{iC}$, where $\Delta_{iC} = \omega_i - \omega_C$), it can be
+adiabatically eliminated. The Schrieffer--Wolff (SW) perturbative transformation yields an
+effective direct A--B coupling:
+
+\begin{equation}
+  g_\text{eff}(\Phi) = \frac{g_{AC}\cdot g_{BC}}{2}
+                       \left(\frac{1}{\Delta_{AC}} + \frac{1}{\Delta_{BC}}\right)
+\end{equation}
+
+This formula has a striking consequence: $g_\text{eff}$ \textbf{changes sign} as $\omega_C$
+sweeps through the qubit frequencies. In a real device there is typically a residual direct
+capacitive coupling $g_{AB}$ between the qubits; by tuning $\Phi$ so that the coupler-mediated
+term exactly cancels $g_{AB}$, the total effective coupling can be set to zero---a
+``parking'' point for idle qubits. This is the operating principle of tunable-coupler
+architectures used in state-of-the-art superconducting processors.
+
+Near the degeneracy points ($\Delta_{iC} \to 0$) the perturbative approximation breaks down
+and the full numerical diagonalization is required; the \texttt{flux\_sweep\_spectrum} method
+provides this.
+
+\hrule
+\vspace{1em}
+
+% ============================================================
+\section{Installation}
+
+\begin{lstlisting}[language=bash]
+pip install -r requirements.txt
+\end{lstlisting}
+
+The main dependencies are \texttt{qutip}, \texttt{numpy}, \texttt{scipy}, and
+\texttt{matplotlib}. The full \texttt{requirements.txt} pins all transitive dependencies for
+reproducibility.
+
+\hrule
+\vspace{1em}
+
+% ============================================================
+\section{Quick Start}
+
+\begin{lstlisting}[language=Python]
+from devices import Transmon, TransmonResonator, TunableCouplerSystem
+import numpy as np
+
+# Single transmon (EJ/Ec = 50, deep transmon regime)
+t = Transmon(Ec=0.2, EJ=10.0, ng=0.0, n_cutoff=15)
+print(t.transition_frequency(0, 1))   # w_01 ~ 3.79 GHz
+print(t.anharmonicity() * 1e3)        # alpha ~ -230 MHz
+
+# Charge dispersion sweep
+ng_vals = np.linspace(-1, 1, 300)
+energies = t.charge_dispersion_sweep(ng_vals, num_levels=5)
+
+# EJ/Ec crossover
+ratios = np.linspace(1, 80, 200)
+freqs, anharmon = t.ej_ec_sweep(ratios)
+
+# Transmon coupled to a resonator (dispersive regime)
+dev = TransmonResonator(Ec=0.2, EJ=10.0, omega_r=6.0, g=0.1)
+print(dev.dispersive_shift * 1e3)     # chi ~ -0.43 MHz
+
+# Two qubits with a flux-tunable coupler
+sys = TunableCouplerSystem(
+    Ec_A=0.20, EJ_A=10.0,
+    Ec_B=0.20, EJ_B=9.5,
+    Ec_C=0.30, EJ_max_C=18.0,
+    g_AC=0.10, g_BC=0.10,
+)
+flux_vals = np.linspace(0, 0.45, 100)
+g_eff = sys.effective_coupling(flux_vals)   # SW estimate vs flux
+spec  = sys.flux_sweep_spectrum(flux_vals, num_levels=6)  # full numerics
+\end{lstlisting}
+
+See \texttt{transmon\_demo.ipynb} for annotated plots of all three systems.
+
+\hrule
+\vspace{1em}
+
+% ============================================================
+\section{API Reference}
+
+\subsection{\texttt{Transmon(Ec, EJ, ng=0.0, n\_cutoff=15)}}
+
+Single transmon qubit in the charge basis.
+
+\begin{center}
+\begin{tabular}{@{}ll@{}}
+\toprule
+Method / Property & Description \\
+\midrule
+\texttt{build\_hamiltonian()} & Tridiagonal Hamiltonian as a QuTiP \texttt{Qobj} \\
+\texttt{get\_eigenspectrum(num\_levels)} & Eigenvalues ($E_0 = 0$) and eigenstates \\
+\texttt{transition\_frequency(i, j)} & $E_j - E_i$; default is $\omega_{01}$ \\
+\texttt{anharmonicity()} & $\alpha = \omega_{12} - \omega_{01}$ \\
+\texttt{charge\_dispersion\_sweep(ng\_values, num\_levels)} & Energy bands vs $n_g$ \\
+\texttt{ej\_ec\_sweep(ratio\_values)} & $\omega_{01}$ and $\alpha$ vs $E_J/E_C$ \\
+\texttt{EJ\_over\_Ec} & $E_J/E_C$ ratio \\
+\texttt{charge\_states} & Cooper-pair numbers $-N,\ldots,N$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{\texttt{TransmonResonator(Ec, EJ, omega\_r, g, ng=0.0, n\_cutoff=15, n\_fock=10)}}
+
+Transmon capacitively coupled to a single-mode resonator.
+
+\begin{center}
+\begin{tabular}{@{}ll@{}}
+\toprule
+Method / Property & Description \\
+\midrule
+\texttt{build\_hamiltonian()} & Full composite Hamiltonian \\
+\texttt{get\_eigenspectrum(num\_levels)} & Composite eigensystem; $E_0 = 0$ \\
+\texttt{dispersive\_shift} & $\chi \approx g^2\alpha / (\Delta(\Delta + \alpha))$ \\
+\texttt{resonator\_frequency\_sweep(omega\_r\_values, num\_levels)} & Spectrum vs $\omega_r$ (vacuum-Rabi crossing) \\
+\texttt{transmon} & Access to the bare \texttt{Transmon} subsystem \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{\texttt{TunableCouplerSystem(Ec\_A, EJ\_A, \ldots, Ec\_C, EJ\_max\_C, g\_AC, g\_BC, \ldots)}}
+
+Two transmons coupled via a flux-tunable SQUID coupler.
+
+\begin{center}
+\begin{tabular}{@{}ll@{}}
+\toprule
+Method / Property & Description \\
+\midrule
+\texttt{build\_hamiltonian(flux)} & Full 3-body Hamiltonian at dimensionless flux $\Phi/\Phi_0$ \\
+\texttt{get\_eigenspectrum(flux, num\_levels)} & 3-body eigensystem; $E_0 = 0$ \\
+\texttt{coupler\_EJ(flux)} & $E_{J,\max}|\cos(\pi\Phi/\Phi_0)|$ \\
+\texttt{effective\_coupling(flux\_values)} & Schrieffer--Wolff $g_\text{eff}$ vs flux \\
+\texttt{flux\_sweep\_spectrum(flux\_values, num\_levels)} & Full numerical spectrum vs flux \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\hrule
+\vspace{1em}
+
+% ============================================================
+\section{Further Reading}
+
+\begin{itemize}
+  \item Koch et al., \textit{Charge-insensitive qubit design derived from the Cooper pair box},
+        PRA \textbf{76}, 042319 (2007) --- original transmon proposal
+  \item Blais et al., \textit{Circuit quantum electrodynamics},
+        Rev.\ Mod.\ Phys.\ \textbf{93}, 025005 (2021) --- comprehensive review of circuit QED
+  \item Yan et al., \textit{Tunable coupling scheme for implementing high-fidelity two-qubit
+        gates}, PRA \textbf{93}, 022309 (2016) --- tunable coupler physics
+\end{itemize}
+
+\end{document}
