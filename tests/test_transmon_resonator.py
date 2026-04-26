@@ -185,3 +185,122 @@ class TestResonatorFrequencySweep:
         energies = transmon_resonator.resonator_frequency_sweep(omega_r_near, num_levels=3)
         gap = energies[:, 2] - energies[:, 1]
         assert np.min(gap) > 0.0
+
+
+# ---------------------------------------------------------------------------
+# Rotating frame / Jaynes-Cummings Hamiltonians
+# ---------------------------------------------------------------------------
+
+class TestRotatingFrame:
+    # --- JC coupling ---
+
+    def test_jc_coupling_positive(self, transmon_resonator):
+        assert transmon_resonator._jc_coupling() > 0.0
+
+    def test_jc_coupling_proportional_to_g(self):
+        d1 = TransmonResonator(Ec=0.2, EJ=10.0, omega_r=6.0, g=0.1)
+        d2 = TransmonResonator(Ec=0.2, EJ=10.0, omega_r=6.0, g=0.2)
+        assert d2._jc_coupling() == pytest.approx(2.0 * d1._jc_coupling())
+
+    # --- rotating_rwa frame ---
+
+    def test_rotating_rwa_returns_qobj(self, transmon_resonator):
+        import qutip as qt
+        H = transmon_resonator.build_hamiltonian(frame="rotating_rwa")
+        assert isinstance(H, qt.Qobj)
+
+    def test_rotating_rwa_dimension(self, transmon_resonator):
+        H = transmon_resonator.build_hamiltonian(frame="rotating_rwa")
+        expected = 2 * transmon_resonator.n_fock
+        assert H.shape == (expected, expected)
+
+    def test_rotating_rwa_is_hermitian(self, transmon_resonator):
+        H = transmon_resonator.build_hamiltonian(frame="rotating_rwa").full()
+        np.testing.assert_allclose(H, H.conj().T, atol=1e-10)
+
+    def test_omega_d_defaults_to_omega_r(self, transmon_resonator):
+        H_default = transmon_resonator.build_hamiltonian(frame="rotating_rwa")
+        H_explicit = transmon_resonator.build_hamiltonian(
+            frame="rotating_rwa", omega_d=transmon_resonator.omega_r
+        )
+        np.testing.assert_allclose(H_default.full(), H_explicit.full(), atol=1e-12)
+
+    def test_resonant_drive_zero_cavity_detuning(self, transmon_resonator):
+        """omega_d = omega_r → Delta_r = 0; shifting omega_d by δ changes diagonals by δ*n."""
+        delta = 0.5
+        H0 = transmon_resonator.build_hamiltonian(
+            frame="rotating_rwa", omega_d=transmon_resonator.omega_r
+        )
+        H1 = transmon_resonator.build_hamiltonian(
+            frame="rotating_rwa", omega_d=transmon_resonator.omega_r + delta
+        )
+        # Diagonal shift from cavity: delta * I2 ⊗ num(n_fock); from qubit: delta/2 * sigma_z ⊗ I_r
+        import qutip as qt
+        n_f = transmon_resonator.n_fock
+        expected_shift = (
+            delta * np.kron(np.eye(2), np.diag(np.arange(n_f)))
+            + (delta / 2) * np.kron(qt.sigmaz().full(), np.eye(n_f))
+        )
+        np.testing.assert_allclose(
+            (H0 - H1).full(), expected_shift, atol=1e-10
+        )
+
+    def test_qubit_detuning_matches_formula(self, transmon_resonator):
+        """Diagonal gap |e,0⟩ vs |g,0⟩ equals Delta_q = omega_q - omega_d."""
+        omega_d = transmon_resonator.omega_r
+        omega_q = transmon_resonator.transmon.transition_frequency(0, 1)
+        Delta_q = omega_q - omega_d
+        H = transmon_resonator.build_hamiltonian(frame="rotating_rwa", omega_d=omega_d).full()
+        n_f = transmon_resonator.n_fock
+        # |e,0⟩ is index 0; |g,0⟩ is index n_fock (qutip tensor ordering: outer ⊗ inner)
+        assert H[0, 0] - H[n_f, n_f] == pytest.approx(Delta_q, rel=1e-6)
+
+    def test_lab_frame_unchanged(self, transmon_resonator):
+        """Default frame='lab' returns the same result as the old no-arg call."""
+        H_default = transmon_resonator.build_hamiltonian()
+        H_lab = transmon_resonator.build_hamiltonian(frame="lab")
+        np.testing.assert_allclose(H_default.full(), H_lab.full(), atol=1e-12)
+
+    # --- rotating frame (no RWA) ---
+
+    def test_rotating_returns_list(self, transmon_resonator):
+        H = transmon_resonator.build_hamiltonian(frame="rotating")
+        assert isinstance(H, list)
+
+    def test_rotating_list_has_three_entries(self, transmon_resonator):
+        H = transmon_resonator.build_hamiltonian(frame="rotating")
+        assert len(H) == 3
+
+    def test_rotating_list_structure(self, transmon_resonator):
+        import qutip as qt
+        H = transmon_resonator.build_hamiltonian(frame="rotating")
+        assert isinstance(H[0], qt.Qobj)
+        assert isinstance(H[1], list) and len(H[1]) == 2
+        assert isinstance(H[2], list) and len(H[2]) == 2
+
+    def test_rotating_static_part_matches_rwa(self, transmon_resonator):
+        """H_rot[0] (the time-independent part) equals the RWA Hamiltonian."""
+        H_rwa = transmon_resonator.build_hamiltonian(frame="rotating_rwa")
+        H_rot = transmon_resonator.build_hamiltonian(frame="rotating")
+        np.testing.assert_allclose(H_rot[0].full(), H_rwa.full(), atol=1e-12)
+
+    def test_counter_rotating_coefficients_are_conjugates(self, transmon_resonator):
+        """exp(+2iω_d t) and exp(-2iω_d t) must be complex conjugates."""
+        H = transmon_resonator.build_hamiltonian(frame="rotating")
+        f_pos = H[1][1]
+        f_neg = H[2][1]
+        for t in [0.0, 0.5, 1.23]:
+            assert f_pos(t, {}) == pytest.approx(np.conj(f_neg(t, {})))
+
+    def test_counter_rotating_operators_are_adjoints(self, transmon_resonator):
+        """The two counter-rotating Qobj entries must be Hermitian conjugates."""
+        H = transmon_resonator.build_hamiltonian(frame="rotating")
+        H_cr = H[1][0]
+        H_cr_dag = H[2][0]
+        np.testing.assert_allclose(H_cr.full(), H_cr_dag.dag().full(), atol=1e-12)
+
+    # --- invalid frame ---
+
+    def test_invalid_frame_raises_value_error(self, transmon_resonator):
+        with pytest.raises(ValueError, match="frame"):
+            transmon_resonator.build_hamiltonian(frame="bogus")

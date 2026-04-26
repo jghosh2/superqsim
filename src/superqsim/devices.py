@@ -24,7 +24,7 @@ TunableCouplerSystem
 
 from __future__ import annotations
 
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import qutip as qt
@@ -203,12 +203,28 @@ class Transmon:
 class TransmonResonator:
     """Transmon qubit capacitively coupled to a microwave resonator.
 
-    Hamiltonian (transmon ⊗ resonator Hilbert space)
-    -------------------------------------------------
+    Lab-frame Hamiltonian (transmon ⊗ resonator Hilbert space)
+    ----------------------------------------------------------
         H = H_t ⊗ I_r  +  I_t ⊗ ω_r a†a  +  g n̂_t ⊗ (a + a†)
 
     where H_t is the bare transmon Hamiltonian, n̂_t the charge operator,
     and a is the resonator annihilation operator.
+
+    Rotating-frame / Jaynes-Cummings Hamiltonians
+    ---------------------------------------------
+    ``build_hamiltonian`` also supports two Jaynes-Cummings frames that
+    truncate the transmon to a two-level qubit (frequency ω_q = ω₀₁) and
+    use the effective coupling g_eff = g|⟨1|n̂|0⟩|.
+
+    Rotating frame with RWA (time-independent, 2 × n_fock space):
+
+        H_JC = (Δ_q/2) σ_z + Δ_r a†a + g_eff (σ₊a + σ₋a†)
+
+    Rotating frame without RWA (time-dependent qutip list):
+
+        H(t) = H_JC + g_eff (σ₊a† e^{+2iω_d t} + σ₋a e^{-2iω_d t})
+
+    In both cases Δ_q = ω_q − ω_d and Δ_r = ω_r − ω_d.
 
     Parameters
     ----------
@@ -255,14 +271,92 @@ class TransmonResonator:
         Delta = omega_01 - self.omega_r
         return (self.g ** 2 * alpha) / (Delta * (Delta + alpha))
 
-    def build_hamiltonian(self) -> qt.Qobj:
-        """Full composite Hamiltonian in the tensor-product Hilbert space."""
-        d_t = self._transmon.dim
-        H_t = qt.tensor(self._transmon.build_hamiltonian(), qt.qeye(self.n_fock))
-        H_r = qt.tensor(qt.qeye(d_t), self.omega_r * qt.num(self.n_fock))
-        n_hat = qt.tensor(self._transmon.charge_operator(), qt.qeye(self.n_fock))
-        a = qt.tensor(qt.qeye(d_t), qt.destroy(self.n_fock))
-        return H_t + H_r + self.g * n_hat * (a + a.dag())
+    def _jc_coupling(self) -> float:
+        """Effective JC coupling g_eff = g |⟨1|n̂|0⟩|."""
+        _, vecs = self._transmon.get_eigenspectrum(2)
+        n_mat = self._transmon.charge_operator().full()
+        v0 = vecs[0].full().flatten()
+        v1 = vecs[1].full().flatten()
+        return self.g * float(abs(v1.conj() @ n_mat @ v0))
+
+    def build_hamiltonian(
+        self,
+        frame: str = "lab",
+        omega_d: Optional[float] = None,
+    ) -> Union[qt.Qobj, list]:
+        """Composite Hamiltonian in the requested reference frame.
+
+        Parameters
+        ----------
+        frame : {'lab', 'rotating_rwa', 'rotating'}
+            * ``'lab'`` – full transmon ⊗ Fock lab-frame Hamiltonian
+              (default, dimension d_t × n_fock).
+            * ``'rotating_rwa'`` – Jaynes-Cummings Hamiltonian in the
+              rotating frame with RWA; time-independent ``qt.Qobj`` of
+              dimension 2 × n_fock.
+            * ``'rotating'`` – rotating frame *without* RWA; returns a
+              QuTiP time-dependent list
+              ``[H0, [H_cr, f(t)], [H_cr†, f*(t)]]`` where the
+              counter-rotating terms carry coefficients ``exp(±2iω_d t)``.
+        omega_d : float, optional
+            Drive / frame frequency in GHz.  Ignored for ``'lab'``;
+            defaults to ``omega_r`` for the two rotating-frame options.
+
+        Returns
+        -------
+        qt.Qobj
+            For ``frame='lab'`` or ``frame='rotating_rwa'``.
+        list
+            For ``frame='rotating'``.
+
+        Raises
+        ------
+        ValueError
+            If *frame* is not one of the three recognised strings.
+        """
+        if frame == "lab":
+            d_t = self._transmon.dim
+            H_t = qt.tensor(self._transmon.build_hamiltonian(), qt.qeye(self.n_fock))
+            H_r = qt.tensor(qt.qeye(d_t), self.omega_r * qt.num(self.n_fock))
+            n_hat = qt.tensor(self._transmon.charge_operator(), qt.qeye(self.n_fock))
+            a = qt.tensor(qt.qeye(d_t), qt.destroy(self.n_fock))
+            return H_t + H_r + self.g * n_hat * (a + a.dag())
+
+        wd = omega_d if omega_d is not None else self.omega_r
+        omega_q = self._transmon.transition_frequency(0, 1)
+        g_eff = self._jc_coupling()
+        Delta_q = omega_q - wd
+        Delta_r = self.omega_r - wd
+
+        I2 = qt.qeye(2)
+        I_r = qt.qeye(self.n_fock)
+        sigma_z = qt.tensor(qt.sigmaz(), I_r)
+        sigma_p = qt.tensor(qt.sigmap(), I_r)
+        sigma_m = qt.tensor(qt.sigmam(), I_r)
+        a = qt.tensor(I2, qt.destroy(self.n_fock))
+
+        # Standard JC Hamiltonian (RWA part)
+        H_jc = (
+            (Delta_q / 2) * sigma_z
+            + Delta_r * a.dag() * a
+            + g_eff * (sigma_p * a + sigma_m * a.dag())
+        )
+
+        if frame == "rotating_rwa":
+            return H_jc
+
+        if frame == "rotating":
+            # Counter-rotating terms: g_eff σ₊a† e^{+2iω_d t} + h.c.
+            H_cr = g_eff * sigma_p * a.dag()
+            return [
+                H_jc,
+                [H_cr,       lambda t, args: np.exp(+2j * wd * t)],
+                [H_cr.dag(), lambda t, args: np.exp(-2j * wd * t)],
+            ]
+
+        raise ValueError(
+            f"frame must be 'lab', 'rotating_rwa', or 'rotating'; got {frame!r}"
+        )
 
     def get_eigenspectrum(
         self,
