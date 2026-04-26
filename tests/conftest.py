@@ -2,15 +2,10 @@
 Shared pytest fixtures for superqsim unit tests.
 """
 
-import sys
-import os
-
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 import numpy as np
 import pytest
 
-from devices import Transmon, TransmonResonator, TunableCouplerSystem
+from superqsim import Transmon, TransmonResonator, TunableCouplerSystem
 
 
 @pytest.fixture

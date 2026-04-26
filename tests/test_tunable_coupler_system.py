@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from devices import Transmon, TunableCouplerSystem
+from superqsim import Transmon, TunableCouplerSystem
 
 
 # ---------------------------------------------------------------------------

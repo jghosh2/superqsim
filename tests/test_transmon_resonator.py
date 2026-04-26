@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from devices import Transmon, TransmonResonator
+from superqsim import Transmon, TransmonResonator
 
 
 # ---------------------------------------------------------------------------

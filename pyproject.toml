@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "superqsim"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "qutip>=5",
+    "numpy>=2",
+    "scipy>=1.10",
+    "attrs>=22",
+]
+
+[project.optional-dependencies]
+notebook = ["matplotlib", "jupyterlab"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
