@@ -28,12 +28,14 @@ from typing import List, Optional, Tuple
 
 import numpy as np
 import qutip as qt
+from attrs import define, field
 
 
 # ---------------------------------------------------------------------------
 # Transmon
 # ---------------------------------------------------------------------------
 
+@define
 class Transmon:
     """Single transmon qubit in the charge basis.
 
@@ -57,17 +59,10 @@ class Transmon:
         Charge-basis truncation; Hilbert-space dimension = 2·n_cutoff + 1.
     """
 
-    def __init__(
-        self,
-        Ec: float,
-        EJ: float,
-        ng: float = 0.0,
-        n_cutoff: int = 15,
-    ) -> None:
-        self.Ec = Ec
-        self.EJ = EJ
-        self.ng = ng
-        self.n_cutoff = n_cutoff
+    Ec: float
+    EJ: float
+    ng: float = 0.0
+    n_cutoff: int = 15
 
     # ------------------------------------------------------------------
     # Properties
@@ -204,6 +199,7 @@ class Transmon:
 # TransmonResonator
 # ---------------------------------------------------------------------------
 
+@define
 class TransmonResonator:
     """Transmon qubit capacitively coupled to a microwave resonator.
 
@@ -225,20 +221,17 @@ class TransmonResonator:
         Fock-space truncation for the resonator mode.
     """
 
-    def __init__(
-        self,
-        Ec: float,
-        EJ: float,
-        omega_r: float,
-        g: float,
-        ng: float = 0.0,
-        n_cutoff: int = 15,
-        n_fock: int = 10,
-    ) -> None:
-        self._transmon = Transmon(Ec=Ec, EJ=EJ, ng=ng, n_cutoff=n_cutoff)
-        self.omega_r = omega_r
-        self.g = g
-        self.n_fock = n_fock
+    Ec: float
+    EJ: float
+    omega_r: float
+    g: float
+    ng: float = 0.0
+    n_cutoff: int = 15
+    n_fock: int = 10
+    _transmon: Transmon = field(init=False, repr=False)
+
+    def __attrs_post_init__(self) -> None:
+        self._transmon = Transmon(Ec=self.Ec, EJ=self.EJ, ng=self.ng, n_cutoff=self.n_cutoff)
 
     @property
     def transmon(self) -> Transmon:
@@ -319,6 +312,7 @@ class TransmonResonator:
 # TunableCouplerSystem
 # ---------------------------------------------------------------------------
 
+@define(kw_only=True)
 class TunableCouplerSystem:
     """Two transmons coupled via a flux-tunable SQUID coupler.
 
@@ -353,27 +347,27 @@ class TunableCouplerSystem:
         Composite Hilbert-space dimension = n_levels_A × n_levels_B × n_levels_C.
     """
 
-    def __init__(
-        self,
-        *,
-        Ec_A: float, EJ_A: float, ng_A: float = 0.0,
-        Ec_B: float, EJ_B: float, ng_B: float = 0.0,
-        Ec_C: float, EJ_max_C: float, ng_C: float = 0.0,
-        g_AC: float = 0.1, g_BC: float = 0.1,
-        n_cutoff: int = 15,
-        n_levels_A: int = 3, n_levels_B: int = 3, n_levels_C: int = 3,
-    ) -> None:
-        self.transmon_A = Transmon(Ec_A, EJ_A, ng_A, n_cutoff)
-        self.transmon_B = Transmon(Ec_B, EJ_B, ng_B, n_cutoff)
-        self.Ec_C = Ec_C
-        self.EJ_max_C = EJ_max_C
-        self.ng_C = ng_C
-        self.n_cutoff = n_cutoff
-        self.g_AC = g_AC
-        self.g_BC = g_BC
-        self.n_levels_A = n_levels_A
-        self.n_levels_B = n_levels_B
-        self.n_levels_C = n_levels_C
+    Ec_A: float
+    EJ_A: float
+    ng_A: float = 0.0
+    Ec_B: float
+    EJ_B: float
+    ng_B: float = 0.0
+    Ec_C: float
+    EJ_max_C: float
+    ng_C: float = 0.0
+    g_AC: float = 0.1
+    g_BC: float = 0.1
+    n_cutoff: int = 15
+    n_levels_A: int = 3
+    n_levels_B: int = 3
+    n_levels_C: int = 3
+    transmon_A: Transmon = field(init=False, repr=False)
+    transmon_B: Transmon = field(init=False, repr=False)
+
+    def __attrs_post_init__(self) -> None:
+        self.transmon_A = Transmon(self.Ec_A, self.EJ_A, self.ng_A, self.n_cutoff)
+        self.transmon_B = Transmon(self.Ec_B, self.EJ_B, self.ng_B, self.n_cutoff)
 
     def coupler_EJ(self, flux: float) -> float:
         """Effective Josephson energy at dimensionless flux Φ/Φ₀."""
