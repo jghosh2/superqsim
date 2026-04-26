@@ -6,6 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "superqsim"
 version = "0.1.0"
 requires-python = ">=3.12"
+license = {file = "LICENSE"}
 dependencies = [
     "qutip>=5",
     "numpy>=2",
