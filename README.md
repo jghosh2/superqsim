@@ -24,6 +24,58 @@ $$H_{mn} = 4E_C(m - n_g)^2 \delta_{mn} - \frac{E_J}{2} \left(\delta_{m,n+1} + \d
 
 The diagonal gives the electrostatic energy of each charge state; the off-diagonal tunneling terms hybridize neighboring charge states into energy bands.
 
+#### Derivation of the Charge-Basis Matrix Elements
+
+**Step 1 — Canonical commutation relation.**
+The superconducting phase $\hat{\varphi}$ and Cooper-pair number $\hat{n}$ are canonically conjugate variables satisfying
+
+$$[\hat{\varphi},\, \hat{n}] = i$$
+
+This is the direct circuit analog of the position–momentum commutator $[\hat{x},\hat{p}]=i\hbar$, with the identifications $\hat{\varphi} \leftrightarrow \hat{x}$ and $\hat{n} \leftrightarrow \hat{p}/\hbar$.
+
+**Step 2 — $e^{\pm i\hat{\varphi}}$ as charge-shift operators.**
+The charge eigenstates $|n\rangle$ can be written as Fourier modes of the phase:
+
+$$|n\rangle = \frac{1}{\sqrt{2\pi}} \int_0^{2\pi} d\varphi\; e^{i n \varphi}\,|\varphi\rangle$$
+
+Applying $e^{i\hat{\varphi}}$ simply multiplies the integrand by $e^{i\varphi}$, shifting the Fourier index by one:
+
+$$e^{i\hat{\varphi}}|n\rangle = \frac{1}{\sqrt{2\pi}} \int_0^{2\pi} d\varphi\; e^{i(n+1)\varphi}\,|\varphi\rangle = |n+1\rangle$$
+
+By the same argument $e^{-i\hat{\varphi}}|n\rangle = |n-1\rangle$.
+
+Equivalently, the commutation relation gives $[\hat{n},\, e^{i\hat{\varphi}}] = e^{i\hat{\varphi}}$ (derived by expanding the exponential and using $[\hat{n},\hat{\varphi}^k] = -ik\hat{\varphi}^{k-1}$), which implies $\hat{n}\bigl(e^{i\hat\varphi}|n\rangle\bigr) = (n+1)\bigl(e^{i\hat\varphi}|n\rangle\bigr)$ — confirming the same ladder action.
+
+**Step 3 — Cosine as a sum of shift operators.**
+Using the Euler identity:
+
+$$\cos\hat{\varphi} = \frac{e^{i\hat{\varphi}} + e^{-i\hat{\varphi}}}{2}$$
+
+Acting on a charge eigenstate:
+
+$$\cos\hat{\varphi}\,|n\rangle = \frac{1}{2}\bigl(|n+1\rangle + |n-1\rangle\bigr)$$
+
+The cosine potential therefore couples each charge state only to its two nearest neighbours — a single Cooper pair tunnels across the junction in either direction.
+
+**Step 4 — Computing the matrix elements.**
+Project the full Hamiltonian $H = 4E_C(\hat{n}-n_g)^2 - E_J\cos\hat{\varphi}$ onto the charge basis by sandwiching between $\langle m|$ and $|n\rangle$.
+
+*Charging energy* (diagonal in the charge basis):
+
+$$\langle m|\,4E_C(\hat{n}-n_g)^2\,|n\rangle = 4E_C(n-n_g)^2\,\delta_{mn}$$
+
+*Josephson term* (using Step 3):
+
+$$\langle m|\,{-E_J\cos\hat{\varphi}}\,|n\rangle = -\frac{E_J}{2}\bigl(\langle m|n+1\rangle + \langle m|n-1\rangle\bigr) = -\frac{E_J}{2}\bigl(\delta_{m,\,n+1} + \delta_{m,\,n-1}\bigr)$$
+
+Summing the two contributions:
+
+$$\boxed{H_{mn} = 4E_C(m-n_g)^2\,\delta_{mn} - \frac{E_J}{2}\bigl(\delta_{m,\,n+1}+\delta_{m,\,n-1}\bigr)}$$
+
+This is manifestly tridiagonal: the diagonal encodes the electrostatic energy of each integer charge state, and the off-diagonal entries $-E_J/2$ encode single-Cooper-pair tunneling (the Josephson effect).
+
+**Truncation to finite $N$.** In practice the basis is truncated to $2N+1$ states ($n = -N,\ldots,N$), making $H$ an explicit $(2N+1)\times(2N+1)$ tridiagonal matrix. In the transmon regime ($E_J/E_C \gg 1$) the wavefunctions are strongly localised near the potential minimum, and $N = 15$ is already well converged.
+
 #### The $E_J/E_C$ Ratio and the Transmon Regime
 
 The character of the qubit is controlled by the ratio $E_J/E_C$:
