@@ -131,6 +131,24 @@ $$\omega_r \to \omega_r + \chi \frac{\sigma_z}{2}$$
 
 so measuring the resonator transmission reveals the qubit state without directly driving the qubit — the foundation of **dispersive readout**. The sign of $\chi$ depends on the sign of $\Delta$ (qubit above or below the resonator).
 
+#### Rotating Frames and the Jaynes-Cummings Model
+
+Moving to a frame rotating at drive frequency $\omega_d$ removes the fast oscillation common to both the qubit and resonator, revealing the slow dynamics relevant to experiments. The transmon is truncated to a two-level system at frequency $\omega_q = \omega_{01}$, and the bare coupling $g$ is replaced by the effective matrix element:
+
+$$g_\text{eff} = g\left|\langle 1|\hat{n}|0\rangle\right|$$
+
+**Rotating frame with RWA** — dropping the rapidly oscillating counter-rotating terms ($e^{\pm 2i\omega_d t}$) leaves the time-independent Jaynes-Cummings Hamiltonian:
+
+$$H_\text{JC} = \frac{\Delta_q}{2}\sigma_z + \Delta_r a^\dagger a + g_\text{eff}\left(\sigma_+ a + \sigma_- a^\dagger\right)$$
+
+where $\Delta_q = \omega_q - \omega_d$ and $\Delta_r = \omega_r - \omega_d$ are the qubit and resonator detunings from the drive.
+
+**Rotating frame without RWA** — retaining the counter-rotating terms gives a time-dependent Hamiltonian:
+
+$$H(t) = H_\text{JC} + g_\text{eff}\left(\sigma_+ a^\dagger e^{+2i\omega_d t} + \sigma_- a\, e^{-2i\omega_d t}\right)$$
+
+This is returned as a QuTiP time-dependent list suitable for `qutip.mesolve`. The counter-rotating terms matter when $g_\text{eff}$ is comparable to $\omega_d$ (ultra-strong coupling) or when simulating short, broadband pulses.
+
 ---
 
 ### The Tunable Coupler System
@@ -192,6 +210,10 @@ freqs, anharmon = t.ej_ec_sweep(ratios)
 dev = TransmonResonator(Ec=0.2, EJ=10.0, omega_r=6.0, g=0.1)
 print(dev.dispersive_shift * 1e3)     # χ ≈ -0.43 MHz
 
+# Rotating-frame Hamiltonians (drive at resonator frequency)
+H_jc   = dev.build_hamiltonian(frame='rotating_rwa')          # time-independent JC (2×n_fock)
+H_full = dev.build_hamiltonian(frame='rotating', omega_d=6.0) # JC list with counter-rotating terms
+
 # Two qubits with a flux-tunable coupler
 sys = TunableCouplerSystem(
     Ec_A=0.20, EJ_A=10.0,
@@ -231,11 +253,19 @@ Transmon capacitively coupled to a single-mode resonator.
 
 | Method / Property | Description |
 |---|---|
-| `build_hamiltonian()` | Full composite Hamiltonian |
+| `build_hamiltonian(frame='lab', omega_d=None)` | Composite Hamiltonian in the requested frame (see below) |
 | `get_eigenspectrum(num_levels)` | Composite eigensystem; $E_0 = 0$ |
 | `dispersive_shift` | $\chi \approx g^2\alpha / (\Delta(\Delta+\alpha))$ |
 | `resonator_frequency_sweep(omega_r_values, num_levels)` | Spectrum vs $\omega_r$ (vacuum-Rabi crossing) |
 | `transmon` | Access to the bare `Transmon` subsystem |
+
+**`build_hamiltonian` frames:**
+
+| `frame` | Returns | Dimension | Description |
+|---|---|---|---|
+| `'lab'` (default) | `qt.Qobj` | $d_t \times n_\text{fock}$ | Full transmon ⊗ Fock lab-frame Hamiltonian |
+| `'rotating_rwa'` | `qt.Qobj` | $2 \times n_\text{fock}$ | Time-independent JC Hamiltonian with RWA; `omega_d` defaults to `omega_r` |
+| `'rotating'` | `list` | $2 \times n_\text{fock}$ | Time-dependent JC list (no RWA) for use with `qutip.mesolve`; `omega_d` defaults to `omega_r` |
 
 ### `TunableCouplerSystem(Ec_A, EJ_A, ..., Ec_C, EJ_max_C, g_AC, g_BC, ...)`
 
